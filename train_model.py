@@ -96,6 +96,7 @@ final_model.fit(X, y)
 
 # Save model and analysis
 joblib.dump(final_model, "laptop_price_model.pkl")
+
 with open("model_analysis.json", "w") as f:
     json.dump({
         "results": results,

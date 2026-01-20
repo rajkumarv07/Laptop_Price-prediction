@@ -2,17 +2,27 @@ import streamlit as st
 import pandas as pd
 import joblib
 import json
+import os
 
-# Load model and analysis
-model = joblib.load("laptop_price_model.pkl")
-with open("model_analysis.json") as f:
-    analysis = json.load(f)
+# ------------------ Load Model & Data ------------------
+try:
+    # Auto-train if model or data is missing
+    if not os.path.exists("laptop_price_model.pkl") or not os.path.exists("laptop (3).csv"):
+        import train_model  # must generate: laptop_price_model.pkl, model_analysis.json
 
-# Load dataset to populate dropdowns
-df = pd.read_csv("laptop (3).csv")
-df = df.drop(columns=[c for c in df.columns if "Unnamed" in c])
-df = df.dropna()
+    model = joblib.load("laptop_price_model.pkl")
 
+    with open("model_analysis.json") as f:
+        analysis = json.load(f)
+
+    df = pd.read_csv("laptop (3).csv")
+    df = df.drop(columns=[c for c in df.columns if "Unnamed" in c]).dropna()
+
+except Exception as e:
+    st.error(f"⚠️ Error loading model or data: {e}")
+    st.stop()
+
+# ------------------ Streamlit Config ------------------
 st.set_page_config(page_title="Laptop Price Predictor", layout="wide")
 st.title("💻 Laptop Price Predictor – SmartTech")
 
@@ -30,11 +40,9 @@ with tab1:
     cpu = st.selectbox("CPU", sorted(df["Cpu"].unique()))
     ram = st.number_input("RAM (GB)", 2, 64, 16)
 
-    # Convert Memory → numeric range for UI
     storage = st.number_input("Total Storage (GB)", 64, 4096, 512)
-
     gpu = st.selectbox("GPU", sorted(df["Gpu"].unique()))
-    os = st.selectbox("Operating System", sorted(df["OpSys"].unique()))
+    os_choice = st.selectbox("Operating System", sorted(df["OpSys"].unique()))
     weight = st.number_input("Weight (kg)", 0.5, 5.0, 1.9)
 
     if st.button("Predict Price"):
@@ -47,30 +55,17 @@ with tab1:
             "Ram": ram,
             "StorageGB": storage,
             "Gpu": gpu,
-            "OpSys": os,
+            "OpSys": os_choice,
             "Weight": weight
         }])
 
-        price = model.predict(data)[0]
-        st.success(f"💰 Predicted Price: ₹ {price:,.2f}")
+        try:
+            price = model.predict(data)[0]
+            st.success(f"💰 Predicted Price: ₹ {price:,.2f}")
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
 
 # ------------------ Analysis Tab ------------------
-with tab2:
-    st.subheader("Model Performance Comparison")
-
-    results_df = pd.DataFrame(analysis["results"]).T
-    st.dataframe(results_df, use_container_width=True)
-
-    st.markdown(f"### 🏆 Best Model: **{analysis['best_model']}**")
-
-    st.markdown("""
-    **Metrics Explanation:**
-    - **R²**: How well the model explains price variance
-    - **MAE**: Average absolute error
-    - **RMSE**: Penalizes large errors
-    """)
-# ------------------ Analysis Tab ------------------
-
 with tab2:
     st.subheader("Model Performance Comparison")
 
@@ -112,17 +107,21 @@ with tab2:
     st.divider()
     st.subheader("🧠 Feature Importance (Random Forest)")
 
-    # Extract feature importance from trained model
-    rf_model = model.named_steps["model"]
-    prep = model.named_steps["prep"]
+    try:
+        if hasattr(model, "named_steps"):
+            rf_model = model.named_steps["model"]
+            prep = model.named_steps["prep"]
+            feature_names = prep.get_feature_names_out()
+            importances = rf_model.feature_importances_
 
-    feature_names = prep.get_feature_names_out()
-    importances = rf_model.feature_importances_
+            fi_df = pd.DataFrame({
+                "Feature": feature_names,
+                "Importance": importances
+            }).sort_values(by="Importance", ascending=False).head(15)
 
-    fi_df = pd.DataFrame({
-        "Feature": feature_names,
-        "Importance": importances
-    }).sort_values(by="Importance", ascending=False).head(15)
-
-    st.write("Top 15 Influential Features")
-    st.bar_chart(fi_df.set_index("Feature"))
+            st.write("Top 15 Influential Features")
+            st.bar_chart(fi_df.set_index("Feature"))
+        else:
+            st.info("Feature importance not available for this model.")
+    except Exception as e:
+        st.error(f"Feature importance extraction failed: {e}")
