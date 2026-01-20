@@ -13,7 +13,16 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
 
 # Load dataset
-df = pd.read_csv("laptop (3).csv")
+import os
+import pandas as pd
+
+if not os.path.exists("laptop (3).csv"):
+    url = "https://raw.githubusercontent.com/rajkumarv07/Laptop_Price-prediction/main/laptop%20(3).csv"
+    df = pd.read_csv(url)
+    df.to_csv("laptop (3).csv", index=False)
+else:
+    df = pd.read_csv("laptop (3).csv")
+
 
 # Drop junk columns
 df = df.drop(columns=[c for c in df.columns if "Unnamed" in c])
